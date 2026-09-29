@@ -51,6 +51,9 @@ import { useVizCanvasIO } from "@/hooks/useVizCanvasIO";
 import { useMapFlowCreation } from "@/hooks/useMapFlowCreation";
 import { useAIPlanOrchestration } from "@/hooks/useAIPlanOrchestration";
 import { v4 as uuidv4 } from "uuid";
+import IberoPublishDialog from "@/components/panels/IberoPublishDialog";
+import { useIberoStore } from "@/stores/iberoStore";
+import { FiUploadCloud } from "react-icons/fi";
 
 export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: PersistedAppState | null } = {}) {
   const isGuest = Boolean(guestSnapshot);
@@ -82,6 +85,8 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
   const sampleDataRestoreAttemptedRef = useRef(false);
   const framesRef = useRef<CanvasFrame[]>([]);
   const handoffRawRef = useRef<string | null>(null);
+  const iberoContext = useIberoStore((s) => s.context);
+  const [iberoPublishOpen, setIberoPublishOpen] = useState(false);
 
   useEffect(() => {
     framesRef.current = frames;
@@ -880,7 +885,17 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
 
           {/* Top Right - User Menu + Style Panel */}
           <div className="pointer-events-none absolute right-0 top-0 z-20 flex flex-col items-end gap-2 p-3">
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto flex items-center gap-2">
+              {iberoContext && !isGuest && (
+                <button
+                  onClick={() => setIberoPublishOpen(true)}
+                  title={`${iberoContext.organizationName} / ${iberoContext.datasetTitle}`}
+                  className="flex h-10 items-center gap-2 rounded-full bg-white px-4 text-sm font-medium text-teal-700 shadow-md ring-1 ring-slate-200 transition hover:bg-teal-50"
+                >
+                  <FiUploadCloud size={15} />
+                  Guardar en Ibero Data
+                </button>
+              )}
               <UserMenu />
             </div>
             {stylePanelOpen && (
@@ -935,6 +950,15 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
 
       {/* Shortcuts Modal */}
       {shortcutsModalOpen && <ShortcutsModal onClose={toggleShortcutsModal} />}
+      {iberoPublishOpen && (
+        <IberoPublishDialog
+          nodes={nodes}
+          pages={pages}
+          selectedNodeId={selectedNodeId}
+          buildState={buildRemoteSaveState}
+          onClose={() => setIberoPublishOpen(false)}
+        />
+      )}
       {dialog && (
         <Dialog
           open={true}

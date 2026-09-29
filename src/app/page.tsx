@@ -10,6 +10,14 @@ import { v4 as uuidv4 } from "uuid";
 import { buildPersistedAppState } from "@/lib/persistence";
 import type { FromConfig, GroupConfig, SQLConfig, TableDisplayConfig, ColumnFilter, AggregationConfig, JoinConfig } from "@/types/nodes";
 import type { DAGNode, DAGEdge } from "@/engine/types";
+import { parseIberoContext, useIberoStore, type IberoContext } from "@/stores/iberoStore";
+import { resourceIdFromDownloadUrl, withFreshIds } from "@/lib/iberoPublish";
+
+function registerIberoTable(context: IberoContext | null, tableName: string | null | undefined, downloadUrl: string) {
+  const resourceId = resourceIdFromDownloadUrl(downloadUrl);
+  if (!context || !tableName || !resourceId) return;
+  useIberoStore.getState().registerTable(tableName, { resourceId, datasetId: context.datasetId });
+}
 
 function buildAnalysisPipeline(
   recipe: Record<string, unknown>,
@@ -246,7 +254,14 @@ export default function Home() {
       body: JSON.stringify({ handoffToken: handoff, ckanUrl }),
     })
       .then(async (res) => {
-        const data = await res.json() as { token?: string; message?: string[]; ckanDownloadToken?: string; user?: AuthUser };
+        const data = await res.json() as {
+          token?: string;
+          message?: string[];
+          ckanDownloadToken?: string;
+          user?: AuthUser;
+          iberoContext?: unknown;
+          canvas?: { state?: unknown; tables?: { tableName: string; resourceId: string; downloadUrl: string }[] } | null;
+        };
         console.log("[handoff] ckan-sign-in status:", res.status, "body:", data, "sesión activa:", !!existingToken);
         if (!res.ok || !data.token) {
           if (!existingToken) {
@@ -258,6 +273,8 @@ export default function Home() {
           console.warn("[handoff] no se pudo consumir el token de CKAN; se continúa con la sesión activa");
         }
         const sessionToken = existingToken ?? data.token!;
+        const iberoContext = parseIberoContext(data.iberoContext);
+        if (iberoContext) useIberoStore.getState().setContext(iberoContext);
 
         const resourceUrl = params.get("resource_url");
         const resourceName = params.get("resource_name");
@@ -291,6 +308,7 @@ export default function Home() {
               console.warn("[handoff] import result failed:", importRes.status, errBody);
             } else {
               const importData = await importRes.json() as { tableName?: string; rowCount?: number; skipped?: boolean };
+              registerIberoTable(iberoContext, importData.tableName, resourceUrl);
               console.log(importData.skipped ? "[handoff] result al ready exists, not imported:" : "[handoff] import result ok:", importData);
             }
           } catch (e) {
@@ -317,6 +335,7 @@ export default function Home() {
             if (srcRes.ok) {
               const srcData = await srcRes.json() as { tableName?: string; skipped?: boolean };
               importedSourceTableName = srcData.tableName ?? null;
+              registerIberoTable(iberoContext, srcData.tableName, sourceResourceUrl);
               console.log(srcData.skipped ? "[handoff] source already exists, not reimported:" : "[handoff] import source ok:", srcData);
             }
           } catch (e) {
@@ -346,6 +365,7 @@ export default function Home() {
                 if (jRes.ok) {
                   const jData = await jRes.json() as { tableName?: string; skipped?: boolean };
                   if (jData.tableName) joinTableNamesByAlias[jr.alias] = jData.tableName;
+                  registerIberoTable(iberoContext, jData.tableName, jr.url);
                   console.log(jData.skipped ? "[handoff] join resource already exists:" : "[handoff] import join resource ok:", jr.alias, jData);
                 }
               } catch (e) {
@@ -366,6 +386,37 @@ export default function Home() {
           } catch (e) {
             console.warn("[handoff] could not build pipeline from recipe:", e);
           }
+        }
+
+        if (data.canvas?.state && typeof data.canvas.state === "object") {
+          for (const table of data.canvas.tables ?? []) {
+            try {
+              const tRes = await fetch(`${API_BASE}/tables/import-from-url`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${sessionToken}`,
+                },
+                body: JSON.stringify({
+                  url: table.downloadUrl,
+                  tableName: table.tableName,
+                  format: "parquet",
+                  ckanToken: data.ckanDownloadToken ?? "",
+                }),
+              });
+              if (tRes.ok) {
+                const tData = await tRes.json() as { tableName?: string };
+                if (iberoContext && tData.tableName) {
+                  useIberoStore.getState().registerTable(tData.tableName, { resourceId: table.resourceId, datasetId: iberoContext.datasetId });
+                }
+              } else {
+                console.warn("[handoff] import canvas table failed:", table.tableName, tRes.status);
+              }
+            } catch (e) {
+              console.warn("[handoff] import canvas table network error:", table.tableName, e);
+            }
+          }
+          sessionStorage.setItem("vizcanvas-handoff", JSON.stringify(withFreshIds(data.canvas.state as PersistedAppState)));
         }
 
         if (!existingToken && data.token) {

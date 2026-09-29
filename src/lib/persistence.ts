@@ -87,7 +87,37 @@ function normalizeNodeSizes(state: PersistedAppState): PersistedAppState["nodeSi
   );
 }
 
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => (seen.has(item.id) ? false : (seen.add(item.id), true)));
+}
+
+export function dedupePersistedAppState(state: PersistedAppState): PersistedAppState {
+  const edgeKeys = new Set<string>();
+  const edges = uniqueById(state.dag.edges).filter((e) => {
+    const key = `${e.fromNodeId}->${e.toNodeId}:${e.toInputIndex}`;
+    return edgeKeys.has(key) ? false : (edgeKeys.add(key), true);
+  });
+  const nodes = Object.fromEntries(
+    Object.entries(state.dag.nodes).map(([id, node]) => [
+      id,
+      Array.isArray(node.inputIds) ? { ...node, inputIds: [...new Set(node.inputIds)] } : node,
+    ])
+  );
+  return {
+    ...state,
+    frames: uniqueById(state.frames ?? []),
+    canvas: { ...state.canvas, pages: uniqueById(state.canvas.pages) },
+    dag: { nodes, edges },
+  };
+}
+
 function normalizePersistedAppState(parsed: unknown): PersistedAppState | null {
+  const state = normalizePersistedAppStateShape(parsed);
+  return state ? dedupePersistedAppState(state) : null;
+}
+
+function normalizePersistedAppStateShape(parsed: unknown): PersistedAppState | null {
   if (!parsed || typeof parsed !== "object") return null;
 
   const version = typeof (parsed as { version?: unknown }).version === "number"
@@ -238,12 +268,13 @@ export function mergePersistedStates(
     base.canvas.pages.map((page) => [pageSignature(base, page.id), page.id])
   );
 
+  const basePageIds = new Set(base.canvas.pages.map((page) => page.id));
   const keptPages: CanvasPage[] = [];
   let focusPageId: string | null = null;
 
   for (const page of incoming.canvas.pages) {
     const sig = pageSignature(incoming, page.id);
-    const existingPageId = sig ? baseSignatures.get(sig) : undefined;
+    const existingPageId = basePageIds.has(page.id) ? page.id : sig ? baseSignatures.get(sig) : undefined;
     if (existingPageId) {
       if (page.id === incoming.canvas.currentPageId || focusPageId === null) {
         focusPageId = existingPageId;
@@ -278,7 +309,7 @@ export function mergePersistedStates(
     order: baseOrderMax + 1 + i,
   }));
 
-  return {
+  return dedupePersistedAppState({
     version: STORAGE_VERSION,
     savedAt: new Date().toISOString(),
     nodePositions: { ...base.nodePositions, ...keptPositions },
@@ -294,7 +325,7 @@ export function mergePersistedStates(
       nodes: { ...base.dag.nodes, ...keptNodes },
       edges: [...base.dag.edges, ...keptEdges],
     },
-  };
+  });
 }
 
 export function buildSafeVizCanvasTitle(title: string): string {
