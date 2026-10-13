@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { FiEye, FiEyeOff, FiAlertCircle, FiLoader, FiDatabase, FiCheckCircle } from "react-icons/fi";
+import { FiEye, FiEyeOff, FiAlertCircle, FiLoader, FiCheckCircle } from "react-icons/fi";
 import { useAuthStore, type AuthUser } from "@/stores/authStore";
 import RegisterPage from "./RegisterPage";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
-const CKAN_URL = process.env.NEXT_PUBLIC_CKAN_URL ?? "http://localhost:5000";
 
 export function LogoMark() {
   return (
@@ -171,23 +170,6 @@ export default function LoginPage() {
             >
               {loading && <FiLoader size={16} className="animate-spin" />}
               {loading ? "Entrando..." : "Entrar"}
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-slate-200" />
-              <span className="text-xs font-medium text-slate-400">o continúa con</span>
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                window.location.href = `${CKAN_URL.replace(/\/+$/, "")}/duckdb/vizcanvas-handoff`;
-              }}
-              className="flex items-center justify-center gap-2.5 rounded-xl border border-slate-300 bg-white py-3.5 text-base font-semibold text-slate-700 shadow-sm transition hover:border-teal-400 hover:bg-teal-50/50 active:scale-[0.99]"
-            >
-              <FiDatabase size={17} className="text-teal-600" />
-              Portal de datos CKAN
             </button>
 
             <p className="text-center text-sm text-slate-500">

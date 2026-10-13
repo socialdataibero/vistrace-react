@@ -8,7 +8,7 @@ export interface AuthUser {
   role?: string;
 }
 
-export type AuthSource = 'local' | 'ckan';
+export type AuthSource = 'local' | 'ibero';
 
 interface AuthState {
   token: string | null;

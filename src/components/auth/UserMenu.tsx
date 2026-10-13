@@ -13,7 +13,7 @@ import {
 import { useAuthStore, userFromToken, type AuthUser } from "@/stores/authStore";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
-const CKAN_URL = process.env.NEXT_PUBLIC_CKAN_URL ?? "http://localhost:5000";
+const IBERO_DATA_URL = process.env.NEXT_PUBLIC_IBERO_DATA_URL ?? "http://localhost:4200";
 
 function initials(user: AuthUser | null): string {
   const base = user?.name?.trim() || user?.username?.trim() || "?";
@@ -35,7 +35,7 @@ export default function UserMenu() {
   const clearToken = useAuthStore((s) => s.clearToken);
 
   const user = storedUser ?? (token ? userFromToken(token) : null);
-  const isCkan = source === "ckan";
+  const isIbero = source === "ibero";
 
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -64,7 +64,7 @@ export default function UserMenu() {
   }
 
   async function handleSaveName() {
-    if (!token || isCkan) return;
+    if (!token || isIbero) return;
     setSaving(true);
     setSaveMsg(null);
     try {
@@ -139,10 +139,10 @@ export default function UserMenu() {
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
                   {roleLabel(user?.role)}
                 </span>
-                {isCkan && (
+                {isIbero && (
                   <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-700">
                     <FiDatabase size={9} />
-                    CKAN
+                    Ibero Data
                   </span>
                 )}
               </div>
@@ -156,15 +156,15 @@ export default function UserMenu() {
                 <FiUser size={15} className="text-slate-400" />
                 Mi perfil
               </button>
-              {isCkan && (
+              {isIbero && (
                 <a
-                  href={CKAN_URL}
+                  href={IBERO_DATA_URL}
                   target="_blank"
                   rel="noreferrer"
                   className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                 >
                   <FiDatabase size={15} className="text-slate-400" />
-                  Ir al portal de datos
+                  Ir a Ibero Data
                 </a>
               )}
               <div className="mx-2 my-1 h-px bg-slate-100" />
@@ -213,21 +213,20 @@ export default function UserMenu() {
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
                     {roleLabel(user?.role)}
                   </span>
-                  {isCkan && (
+                  {isIbero && (
                     <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-700">
                       <FiDatabase size={9} />
-                      Cuenta CKAN
+                      Cuenta Ibero Data
                     </span>
                   )}
                 </div>
               </div>
             </div>
 
-            {isCkan ? (
+            {isIbero ? (
               <p className="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500">
-                Tu cuenta se administra desde el portal de datos CKAN. Para
-                cambiar tu nombre o contraseña, hazlo desde tu perfil en el
-                portal.
+                Tu cuenta se administra desde Ibero Data. Para cambiar tu
+                nombre o contraseña, hazlo desde tu perfil en Ibero Data.
               </p>
             ) : (
               <div className="flex flex-col gap-3">

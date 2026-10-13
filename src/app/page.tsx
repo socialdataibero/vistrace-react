@@ -238,9 +238,8 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const handoff = params.get("handoff");
-    const ckanUrl = params.get("ckan_url");
 
-    if (!handoff || !ckanUrl) return;
+    if (!handoff) return;
 
     if (handoffProcessedRef.current) return;
     handoffProcessedRef.current = true;
@@ -248,21 +247,21 @@ export default function Home() {
 
     setStatus("auth");
 
-    fetch(`${API_BASE}/users/ckan-sign-in`, {
+    fetch(`${API_BASE}/users/ibero-sign-in`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ handoffToken: handoff, ckanUrl }),
+      body: JSON.stringify({ handoffToken: handoff }),
     })
       .then(async (res) => {
         const data = await res.json() as {
           token?: string;
           message?: string[];
-          ckanDownloadToken?: string;
+          iberoDownloadToken?: string;
           user?: AuthUser;
           iberoContext?: unknown;
           canvas?: { state?: unknown; tables?: { tableName: string; resourceId: string; downloadUrl: string }[] } | null;
         };
-        console.log("[handoff] ckan-sign-in status:", res.status, "body:", data, "sesión activa:", !!existingToken);
+        console.log("[handoff] ibero-sign-in status:", res.status, "body:", data, "sesión activa:", !!existingToken);
         if (!res.ok || !data.token) {
           if (!existingToken) {
             const msg = Array.isArray(data.message) ? data.message[0] : (data.message ?? `Error ${res.status}`);
@@ -270,7 +269,7 @@ export default function Home() {
             setStatus("idle");
             return;
           }
-          console.warn("[handoff] no se pudo consumir el token de CKAN; se continúa con la sesión activa");
+          console.warn("[handoff] no se pudo consumir el token de Ibero Data; se continúa con la sesión activa");
         }
         const sessionToken = existingToken ?? data.token!;
         const iberoContext = parseIberoContext(data.iberoContext);
@@ -300,7 +299,7 @@ export default function Home() {
                 url: resourceUrl,
                 tableName: resourceName,
                 format: resourceFormat,
-                ckanToken: data.ckanDownloadToken ?? "",
+                downloadToken: data.iberoDownloadToken ?? "",
               }),
             });
             if (!importRes.ok) {
@@ -329,7 +328,7 @@ export default function Home() {
                 url: sourceResourceUrl,
                 tableName: sourceResourceName,
                 format: "parquet",
-                ckanToken: data.ckanDownloadToken ?? "",
+                downloadToken: data.iberoDownloadToken ?? "",
               }),
             });
             if (srcRes.ok) {
@@ -359,7 +358,7 @@ export default function Home() {
                     url: jr.url,
                     tableName: jr.name,
                     format: "parquet",
-                    ckanToken: data.ckanDownloadToken ?? "",
+                    downloadToken: data.iberoDownloadToken ?? "",
                   }),
                 });
                 if (jRes.ok) {
@@ -401,7 +400,7 @@ export default function Home() {
                   url: table.downloadUrl,
                   tableName: table.tableName,
                   format: "parquet",
-                  ckanToken: data.ckanDownloadToken ?? "",
+                  downloadToken: data.iberoDownloadToken ?? "",
                 }),
               });
               if (tRes.ok) {
@@ -420,7 +419,7 @@ export default function Home() {
         }
 
         if (!existingToken && data.token) {
-          setSession(data.token, data.user ?? null, "ckan");
+          setSession(data.token, data.user ?? null, "ibero");
         }
         setStatus("done");
       })
@@ -448,8 +447,8 @@ export default function Home() {
   }
   if (guestSnapshot) return <CanvasApp guestSnapshot={guestSnapshot} />;
 
-  if (status === "auth") return <Spinner label="Autenticando con CKAN..." />;
-  if (status === "import") return <Spinner label="Importando datos desde CKAN..." />;
+  if (status === "auth") return <Spinner label="Autenticando con Ibero Data..." />;
+  if (status === "import") return <Spinner label="Importando datos desde Ibero Data..." />;
 
   if (handoffError) {
     return (
