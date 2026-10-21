@@ -261,7 +261,8 @@ export default function Home() {
           iberoContext?: unknown;
           canvas?: { state?: unknown; tables?: { tableName: string; resourceId: string; downloadUrl: string }[] } | null;
         };
-        console.log("[handoff] ibero-sign-in status:", res.status, "body:", data, "sesión activa:", !!existingToken);
+        // Never log the response body: it carries the session and download tokens.
+        console.log("[handoff] ibero-sign-in status:", res.status, "existing session:", !!existingToken);
         if (!res.ok || !data.token) {
           if (!existingToken) {
             const msg = Array.isArray(data.message) ? data.message[0] : (data.message ?? `Error ${res.status}`);
@@ -269,7 +270,7 @@ export default function Home() {
             setStatus("idle");
             return;
           }
-          console.warn("[handoff] no se pudo consumir el token de Ibero Data; se continúa con la sesión activa");
+          console.warn("[handoff] could not consume the Ibero Data token; continuing with the existing session");
         }
         const sessionToken = existingToken ?? data.token!;
         const iberoContext = parseIberoContext(data.iberoContext);
@@ -308,7 +309,7 @@ export default function Home() {
             } else {
               const importData = await importRes.json() as { tableName?: string; rowCount?: number; skipped?: boolean };
               registerIberoTable(iberoContext, importData.tableName, resourceUrl);
-              console.log(importData.skipped ? "[handoff] result al ready exists, not imported:" : "[handoff] import result ok:", importData);
+              console.log(importData.skipped ? "[handoff] result already exists, not imported:" : "[handoff] import result ok:", importData);
             }
           } catch (e) {
             console.warn("[handoff] import result network error:", e);
