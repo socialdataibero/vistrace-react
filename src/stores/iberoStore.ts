@@ -13,6 +13,8 @@ export interface IberoContext {
   analysisId?: string;
   analysisTitle?: string;
   publishToken?: string;
+  /** False when the Ibero Data user may explore but not save analyses (no ADMIN or EDITOR role). */
+  canPublish: boolean;
 }
 
 export interface IberoTableRef {
@@ -62,6 +64,8 @@ export function parseIberoContext(raw: unknown): IberoContext | null {
     analysisId: str(c.analysisId),
     analysisTitle: str(c.analysisTitle),
     publishToken: str(c.publishToken),
+    // Contexts from before canPublish existed always carried a publish token.
+    canPublish: c.canPublish !== false,
   };
 }
 

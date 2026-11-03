@@ -160,7 +160,9 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
           </div>
         ) : !canPublish ? (
           <div className="px-5 py-6 text-sm text-slate-600">
-            {context
+            {context && !context.canPublish
+              ? `Puedes explorar estos datos, pero para guardar análisis en Ibero Data necesitas el rol de Administrador o Editor en .`
+              : context
               ? "Tu permiso para guardar en Ibero Data expiró. Vuelve a abrir vistrace desde el recurso en Ibero Data."
               : "Este canvas no está conectado a Ibero Data. Ábrelo desde un recurso con \"Crear análisis con vistrace\"."}
           </div>

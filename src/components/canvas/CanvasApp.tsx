@@ -894,7 +894,7 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
           {/* Top Right - User Menu + Style Panel */}
           <div className="pointer-events-none absolute right-0 top-0 z-20 flex flex-col items-end gap-2 p-3">
             <div className="pointer-events-auto flex items-center gap-2">
-              {iberoContext && !isGuest && (
+              {iberoContext?.canPublish && !isGuest && (
                 <button
                   onClick={() => setIberoPublishOpen(true)}
                   title={`${iberoContext.organizationName} / ${iberoContext.datasetTitle}`}

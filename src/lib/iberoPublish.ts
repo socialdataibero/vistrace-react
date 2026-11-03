@@ -153,6 +153,9 @@ export async function publishCanvasToIbero(input: PublishToIberoInput): Promise<
 
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
+    if (body.code === "insufficient_role") {
+      throw new Error("Necesitas el rol de Administrador o Editor en esta organización para guardar en Ibero Data.");
+    }
     const message = body.message;
     const text = Array.isArray(message) ? message.join(". ") : typeof message === "string" ? message : `Error ${res.status}`;
     throw new Error(text);
