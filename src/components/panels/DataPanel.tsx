@@ -109,12 +109,13 @@ export default function DataPanel({ onAddFromNode, onCreateMapFlow }: Props) {
     setUploading(true);
     try {
       const results = await Promise.allSettled(supported.map((f) => uploadFile(f)));
-      const failed = results.filter((r) => r.status === "rejected");
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
       if (failed.length > 0) {
+        const reasons = [...new Set(failed.map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason))))];
         setDialog({
           type: "error",
           title: "Error al cargar",
-          message: `No se pudieron cargar ${failed.length} archivo(s). Verifica que el formato sea correcto.`,
+          message: `No se pudieron cargar ${failed.length} archivo(s). ${reasons.join(" ")}`,
         });
       }
     } finally {
@@ -177,9 +178,16 @@ export default function DataPanel({ onAddFromNode, onCreateMapFlow }: Props) {
                 setUploading(true);
                 try {
                   const res = await fetch("/sample_data.csv");
+                  if (!res.ok) throw new Error(`No se pudo descargar el archivo de ejemplo (${res.status}).`);
                   const blob = await res.blob();
                   await uploadFile(new File([blob], "sample_data.csv", { type: "text/csv" }));
-                } catch (err) { console.error(err); }
+                } catch (err) {
+                  setDialog({
+                    type: "error",
+                    title: "No se pudieron cargar los datos de ejemplo",
+                    message: err instanceof Error ? err.message : String(err),
+                  });
+                }
                 setUploading(false);
               }}
               disabled={uploading}

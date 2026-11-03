@@ -28,6 +28,9 @@ export async function loadDataFile(file: File): Promise<DataTable> {
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error("Tu sesión expiró. Vuelve a entrar desde Ibero Data para subir archivos.");
+    }
     const payload = await res.json().catch(() => ({}));
     throw new Error(
       (payload as { message?: string }).message ??

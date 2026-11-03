@@ -796,6 +796,14 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
       } catch (restoreError) {
         console.error("Failed to restore sample_data after hydration:", restoreError);
         sampleDataRestoreAttemptedRef.current = false;
+        // Upload failures no longer replace the canvas (SDI-113), so tell the user the analysis is missing its data.
+        setDialog({
+          type: "error",
+          title: "No se pudieron restaurar los datos de ejemplo",
+          message: `Este análisis usa los datos de ejemplo y no se pudieron volver a cargar. ${
+            restoreError instanceof Error ? restoreError.message : String(restoreError)
+          }`,
+        });
       }
     })();
   }, [hydrated, ready, tables, uploadFile]);

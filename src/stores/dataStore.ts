@@ -71,7 +71,8 @@ const dataStore = createStore<DataState>((set, get) => ({
       void get().refreshMapFlows();
       return table;
     } catch (err) {
-      set({ error: String(err), loading: false });
+      // `error` is the initialization error that replaces the whole canvas (SDI-113); callers show upload failures themselves.
+      set({ loading: false });
       throw err;
     }
   },
