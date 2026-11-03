@@ -1,15 +1,18 @@
+import "@/lib/legacyStorage";
 import { DAGNode, DAGEdge } from "@/engine/types";
 import { CanvasFrame, CanvasPage, VersionSnapshot } from "@/types/canvas";
 import { ColumnInfo } from "@/types/nodes";
 import { getBaseCanvasNodeHeight, getCanvasNodeWidth } from "@/lib/canvasLayout";
 
-export const STORAGE_KEY = "vizcanvas-state";
-export const SNAPSHOTS_STORAGE_KEY = "vizcanvas-snapshots";
-export const UPLOADED_TABLES_STORAGE_KEY = "vizcanvas-uploaded-tables";
+export const STORAGE_KEY = "vistrace-state";
+export const SNAPSHOTS_STORAGE_KEY = "vistrace-snapshots";
+export const UPLOADED_TABLES_STORAGE_KEY = "vistrace-uploaded-tables";
 const STORAGE_VERSION = 1;
-export const VIZCANVAS_FILE_EXTENSION = ".vzc";
-const VIZCANVAS_FORMAT = "vizcanvas";
-const VIZCANVAS_VERSION = 1;
+export const VISTRACE_FILE_EXTENSION = ".vistrace";
+const VISTRACE_FORMAT = "vistrace";
+// Files exported before the rename to vistrace.
+const LEGACY_FORMAT = "vizcanvas";
+const VISTRACE_VERSION = 1;
 const TABULAR_PREVIEW_NODE_TYPES = new Set(["from", "sql", "group", "join", "table", "distinct", "controls"]);
 
 export interface PersistedAppState {
@@ -31,7 +34,7 @@ export interface PersistedAppState {
   };
 }
 
-export interface VizCanvasExportedTable {
+export interface VistraceExportedTable {
   name: string;
   columns: ColumnInfo[];
   rowCount: number;
@@ -40,13 +43,13 @@ export interface VizCanvasExportedTable {
   fileType?: string;
 }
 
-export interface VizCanvasFile {
-  format: typeof VIZCANVAS_FORMAT;
+export interface VistraceFile {
+  format: typeof VISTRACE_FORMAT;
   version: number;
   exportedAt: string;
   appState: PersistedAppState;
   data: {
-    tables: VizCanvasExportedTable[];
+    tables: VistraceExportedTable[];
   };
 }
 
@@ -212,14 +215,14 @@ export function writePersistedSnapshots(snapshots: VersionSnapshot[]) {
   }
 }
 
-export function readPersistedUploadedTables(): VizCanvasExportedTable[] {
+export function readPersistedUploadedTables(): VistraceExportedTable[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(UPLOADED_TABLES_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((table): table is VizCanvasExportedTable => (
+    return parsed.filter((table): table is VistraceExportedTable => (
       Boolean(table) &&
       typeof table === "object" &&
       typeof table.name === "string" &&
@@ -232,7 +235,7 @@ export function readPersistedUploadedTables(): VizCanvasExportedTable[] {
   }
 }
 
-export function writePersistedUploadedTables(tables: VizCanvasExportedTable[]) {
+export function writePersistedUploadedTables(tables: VistraceExportedTable[]) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(UPLOADED_TABLES_STORAGE_KEY, JSON.stringify(tables));
@@ -328,7 +331,7 @@ export function mergePersistedStates(
   });
 }
 
-export function buildSafeVizCanvasTitle(title: string): string {
+export function buildSafeVistraceTitle(title: string): string {
   return title
     .trim()
     .toLowerCase()
@@ -336,13 +339,13 @@ export function buildSafeVizCanvasTitle(title: string): string {
     .replace(/^-+|-+$/g, "") || "untitled-canvas";
 }
 
-export function buildVizCanvasFile(
+export function buildVistraceFile(
   appState: PersistedAppState,
-  tables: VizCanvasExportedTable[]
-): VizCanvasFile {
+  tables: VistraceExportedTable[]
+): VistraceFile {
   return {
-    format: VIZCANVAS_FORMAT,
-    version: VIZCANVAS_VERSION,
+    format: VISTRACE_FORMAT,
+    version: VISTRACE_VERSION,
     exportedAt: new Date().toISOString(),
     appState,
     data: {
@@ -351,15 +354,15 @@ export function buildVizCanvasFile(
   };
 }
 
-export function parseVizCanvasFile(raw: string): VizCanvasFile | null {
+export function parseVistraceFile(raw: string): VistraceFile | null {
   try {
-    const parsed = JSON.parse(raw) as Partial<VizCanvasFile & PersistedAppState>;
+    const parsed = JSON.parse(raw) as Partial<VistraceFile & PersistedAppState>;
 
-    if (parsed?.format === VIZCANVAS_FORMAT && parsed.appState) {
+    if ((parsed?.format === VISTRACE_FORMAT || (parsed?.format as unknown) === LEGACY_FORMAT) && parsed.appState) {
       const tables = Array.isArray(parsed.data?.tables) ? parsed.data.tables : [];
       return {
-        format: VIZCANVAS_FORMAT,
-        version: typeof parsed.version === "number" ? parsed.version : VIZCANVAS_VERSION,
+        format: VISTRACE_FORMAT,
+        version: typeof parsed.version === "number" ? parsed.version : VISTRACE_VERSION,
         exportedAt: typeof parsed.exportedAt === "string" ? parsed.exportedAt : new Date().toISOString(),
         appState: {
           ...parsed.appState,
@@ -373,8 +376,8 @@ export function parseVizCanvasFile(raw: string): VizCanvasFile | null {
 
     if (parsed && typeof parsed.version === "number" && parsed.canvas && parsed.dag) {
         return {
-          format: VIZCANVAS_FORMAT,
-          version: VIZCANVAS_VERSION,
+          format: VISTRACE_FORMAT,
+          version: VISTRACE_VERSION,
           exportedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : new Date().toISOString(),
         appState: {
           ...(parsed as PersistedAppState),

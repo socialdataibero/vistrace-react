@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildPersistedAppState,
-  buildSafeVizCanvasTitle,
-  buildVizCanvasFile,
+  buildSafeVistraceTitle,
+  buildVistraceFile,
   mergePersistedStates,
   parsePersistedAppState,
-  parseVizCanvasFile,
+  parseVistraceFile,
   readPersistedUploadedTables,
   writePersistedUploadedTables,
 } from "@/lib/persistence";
-import type { PersistedAppState, VizCanvasExportedTable } from "@/lib/persistence";
+import type { PersistedAppState, VistraceExportedTable } from "@/lib/persistence";
 import type { DAGNode } from "@/engine/types";
 
 function createPersistedState(): PersistedAppState {
@@ -36,7 +36,7 @@ function createPersistedState(): PersistedAppState {
     ],
     canvas: {
       id: "canvas-1",
-      title: "VizCanvas",
+      title: "vistrace",
       pages: [{ id: "page-1", name: "Page 1", order: 0 }],
       currentPageId: "page-1",
       focusMode: false,
@@ -220,16 +220,16 @@ describe("buildPersistedAppState", () => {
   });
 });
 
-describe("vizcanvas file helpers", () => {
+describe("vistrace file helpers", () => {
   it("sanitizes exported titles into safe filenames", () => {
-    expect(buildSafeVizCanvasTitle("  Sales Dashboard 2025 / LATAM  ")).toBe(
+    expect(buildSafeVistraceTitle("  Sales Dashboard 2025 / LATAM  ")).toBe(
       "sales-dashboard-2025-latam"
     );
   });
 
   it("round-trips the modern file format", () => {
     const appState = createPersistedState();
-    const tables: VizCanvasExportedTable[] = [
+    const tables: VistraceExportedTable[] = [
       {
         name: "orders",
         columns: [{ name: "amount", type: "INTEGER", nullable: false }],
@@ -238,12 +238,12 @@ describe("vizcanvas file helpers", () => {
       },
     ];
 
-    const parsed = parseVizCanvasFile(JSON.stringify(buildVizCanvasFile(appState, tables)));
+    const parsed = parseVistraceFile(JSON.stringify(buildVistraceFile(appState, tables)));
 
     expect(parsed).toMatchObject({
-      format: "vizcanvas",
+      format: "vistrace",
       appState: {
-        canvas: { title: "VizCanvas" },
+        canvas: { title: "vistrace" },
       },
       data: {
         tables: [{ name: "orders", rowCount: 1 }],
@@ -365,7 +365,7 @@ describe("uploaded tables persistence", () => {
     ]);
 
     localStorage.setItem(
-      "vizcanvas-uploaded-tables",
+      "vistrace-uploaded-tables",
       JSON.stringify([
         ...readPersistedUploadedTables(),
         { invalid: true },

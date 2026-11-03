@@ -47,7 +47,7 @@ import { createShare } from "@/db/shares";
 import { clearHydratedNodeExecution, hasReferencedSampleData } from "@/lib/canvasAIHelpers";
 import { useCanvasHistory } from "@/hooks/useCanvasHistory";
 import { useCanvasPresentation } from "@/hooks/useCanvasPresentation";
-import { useVizCanvasIO } from "@/hooks/useVizCanvasIO";
+import { useVistraceIO } from "@/hooks/useVistraceIO";
 import { useMapFlowCreation } from "@/hooks/useMapFlowCreation";
 import { useAIPlanOrchestration } from "@/hooks/useAIPlanOrchestration";
 import { v4 as uuidv4 } from "uuid";
@@ -528,9 +528,9 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
   }, [frames, nodePositions, nodeSizes, setSelectedNode]);
 
   const {
-    exportVizCanvas: handleExportVizCanvas,
-    importVizCanvas: handleImportVizCanvas,
-  } = useVizCanvasIO({
+    exportVistrace: handleExportVistrace,
+    importVistrace: handleImportVistrace,
+  } = useVistraceIO({
     title,
     buildCurrentPersistedState,
     applyPersistedState,
@@ -732,13 +732,13 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
       return;
     }
 
-    const stored = sessionStorage.getItem("vizcanvas-handoff");
+    const stored = sessionStorage.getItem("vistrace-handoff");
     if (stored) handoffRawRef.current = stored;
-    sessionStorage.removeItem("vizcanvas-handoff");
+    sessionStorage.removeItem("vistrace-handoff");
     const handoffRaw = handoffRawRef.current;
-    const authRaw = localStorage.getItem("vizcanvas-auth");
+    const authRaw = localStorage.getItem("vistrace-auth");
     localStorage.clear();
-    if (authRaw) localStorage.setItem("vizcanvas-auth", authRaw);
+    if (authRaw) localStorage.setItem("vistrace-auth", authRaw);
 
     let cancelled = false;
     void (async () => {
@@ -871,8 +871,8 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
               <TitleCard
                 onSaveSnapshot={handleSaveSnapshot}
                 onRestoreSnapshot={(snapshotId) => { void handleRestoreSnapshot(snapshotId); }}
-                onExportVizCanvas={handleExportVizCanvas}
-                onImportVizCanvas={handleImportVizCanvas}
+                onExportVistrace={handleExportVistrace}
+                onImportVistrace={handleImportVistrace}
                 onSharePage={handleSharePage}
               />
             </div>

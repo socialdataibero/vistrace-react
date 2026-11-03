@@ -11,16 +11,16 @@ import Dialog from "@/components/ui/Dialog";
 interface TitleCardProps {
   onSaveSnapshot?: () => void;
   onRestoreSnapshot?: (snapshotId: string) => void;
-  onExportVizCanvas?: () => Promise<void> | void;
-  onImportVizCanvas?: (file: File) => Promise<void> | void;
+  onExportVistrace?: () => Promise<void> | void;
+  onImportVistrace?: (file: File) => Promise<void> | void;
   onSharePage?: () => Promise<void> | void;
 }
 
 export default function TitleCard({
   onSaveSnapshot,
   onRestoreSnapshot,
-  onExportVizCanvas,
-  onImportVizCanvas,
+  onExportVistrace,
+  onImportVistrace,
   onSharePage,
 }: TitleCardProps) {
   const title = useCanvasStore((s) => s.title);
@@ -160,13 +160,13 @@ export default function TitleCard({
       <input
         ref={importInputRef}
         type="file"
-        accept=".vzc,application/json"
+        accept=".vistrace,.vzc,application/json"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (!file || !onImportVizCanvas) return;
+          if (!file || !onImportVistrace) return;
           void runMenuAction("import", async () => {
-            await onImportVizCanvas(file);
+            await onImportVistrace(file);
           });
           e.currentTarget.value = "";
         }}
@@ -235,15 +235,15 @@ export default function TitleCard({
             className="context-menu-item"
             disabled={busyAction === "export"}
             onClick={() => {
-              if (!onExportVizCanvas) return;
+              if (!onExportVistrace) return;
               void runMenuAction("export", async () => {
-                await onExportVizCanvas();
+                await onExportVistrace();
               });
             }}
           >
             <span className="inline-flex items-center gap-2">
               <LuFolderArchive className="h-4 w-4" />
-              <span>{busyAction === "export" ? "Exporting .vzc..." : "Export .vzc"}</span>
+              <span>{busyAction === "export" ? "Exporting .vistrace..." : "Export .vistrace"}</span>
             </span>
           </button>
           <button
@@ -253,7 +253,7 @@ export default function TitleCard({
           >
             <span className="inline-flex items-center gap-2">
               <LuDownload className="h-4 w-4" />
-              <span>{busyAction === "import" ? "Importing .vzc..." : "Import .vzc"}</span>
+              <span>{busyAction === "import" ? "Importing .vistrace..." : "Import .vistrace"}</span>
             </span>
           </button>
           <button className="context-menu-item" onClick={() => { toggleShortcutsModal(); setMenuOpen(false); }}>

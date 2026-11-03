@@ -55,7 +55,7 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
   const [title, setTitle] = useState(context?.analysisTitle ?? "");
   const [slug, setSlug] = useState(context?.analysisTitle ? slugify(context.analysisTitle) : "");
   const [slugEdited, setSlugEdited] = useState(false);
-  const [folder, setFolder] = useState("VizCanvas");
+  const [folder, setFolder] = useState("vistrace");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC">("PRIVATE");
   const [mode, setMode] = useState<"update" | "create">(context?.analysisId ? "update" : "create");
@@ -161,8 +161,8 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
         ) : !canPublish ? (
           <div className="px-5 py-6 text-sm text-slate-600">
             {context
-              ? "Tu permiso para guardar en Ibero Data expiró. Vuelve a abrir VizCanvas desde el recurso en Ibero Data."
-              : "Este canvas no está conectado a Ibero Data. Ábrelo desde un recurso con \"Crear análisis con VizCanvas\"."}
+              ? "Tu permiso para guardar en Ibero Data expiró. Vuelve a abrir vistrace desde el recurso en Ibero Data."
+              : "Este canvas no está conectado a Ibero Data. Ábrelo desde un recurso con \"Crear análisis con vistrace\"."}
           </div>
         ) : (
           <form
@@ -248,7 +248,7 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
             {preview && preview.missingTables.length > 0 && (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                 Estas tablas no vienen de este dataset: <strong>{preview.missingTables.join(", ")}</strong>. El resultado se
-                guarda completo, pero quien reabra el análisis en otra instancia de VizCanvas no podrá recalcular los nodos
+                guarda completo, pero quien reabra el análisis en otra instancia de vistrace no podrá recalcular los nodos
                 que las usan.
               </p>
             )}

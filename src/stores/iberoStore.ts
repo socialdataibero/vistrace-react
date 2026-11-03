@@ -1,3 +1,4 @@
+import "@/lib/legacyStorage";
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -38,7 +39,7 @@ export const useIberoStore = create<IberoState>()(
       setAnalysis: (analysisId, analysisTitle) =>
         set((state) => (state.context ? { context: { ...state.context, analysisId, analysisTitle } } : state)),
     }),
-    { name: 'vizcanvas-ibero' },
+    { name: 'vistrace-ibero' },
   ),
 );
 

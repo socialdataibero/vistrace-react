@@ -94,7 +94,7 @@ export default function LoginPage() {
               <LogoMark />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-800">VizCanvas</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-800">vistrace</h1>
               <p className="mt-1.5 text-sm text-slate-400">
                 Análisis de datos visual — conecta, transforma, visualiza
               </p>

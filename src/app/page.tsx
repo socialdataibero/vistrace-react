@@ -176,7 +176,7 @@ function buildAnalysisPipeline(
     },
     dag: { nodes, edges },
   });
-  sessionStorage.setItem("vizcanvas-handoff", JSON.stringify(state));
+  sessionStorage.setItem("vistrace-handoff", JSON.stringify(state));
   console.log("[handoff] pipeline written to sessionStorage:", Object.keys(nodes).length, "nodes");
 }
 
@@ -186,7 +186,7 @@ const CanvasApp = dynamic(() => import("@/components/canvas/CanvasApp"), {
     <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
       <div className="flex flex-col items-center gap-4">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-        <p className="text-sm text-gray-500">Loading VizCanvas...</p>
+        <p className="text-sm text-gray-500">Loading vistrace...</p>
       </div>
     </div>
   ),
@@ -416,7 +416,7 @@ export default function Home() {
               console.warn("[handoff] import canvas table network error:", table.tableName, e);
             }
           }
-          sessionStorage.setItem("vizcanvas-handoff", JSON.stringify(withFreshIds(data.canvas.state as PersistedAppState)));
+          sessionStorage.setItem("vistrace-handoff", JSON.stringify(withFreshIds(data.canvas.state as PersistedAppState)));
         }
 
         if (!existingToken && data.token) {

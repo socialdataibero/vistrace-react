@@ -6,7 +6,7 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
 
 function shareCacheKey(token: string): string {
-  return `vizcanvas-share-${token}`;
+  return `vistrace-share-${token}`;
 }
 
 export async function createShare(snapshot: PersistedAppState): Promise<{ token: string; url: string }> {

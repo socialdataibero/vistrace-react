@@ -1,5 +1,5 @@
 {
-  "name": "vizcanvas",
+  "name": "vistrace-react",
   "version": "0.1.0",
   "description": "Visual data analysis canvas powered by DuckDB, Next.js and Anthropic.",
   "private": true,

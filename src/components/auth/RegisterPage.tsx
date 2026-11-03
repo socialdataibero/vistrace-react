@@ -93,7 +93,7 @@ export default function RegisterPage({
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-800">Crear cuenta</h1>
               <p className="mt-1.5 text-sm text-slate-400">
-                Únete a VizCanvas y empieza a analizar tus datos
+                Únete a vistrace y empieza a analizar tus datos
               </p>
             </div>
           </div>

@@ -1,4 +1,4 @@
-export const CANVAS_VIEWPORT_CHANGE_EVENT = "vizcanvas-viewport-change";
+export const CANVAS_VIEWPORT_CHANGE_EVENT = "vistrace-viewport-change";
 
 export function notifyCanvasViewportChange() {
   if (typeof window === "undefined") return;

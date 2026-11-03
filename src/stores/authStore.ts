@@ -1,3 +1,4 @@
+import "@/lib/legacyStorage";
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -31,7 +32,7 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user }),
       clearToken: () => set({ token: null, user: null, source: null }),
     }),
-    { name: 'vizcanvas-auth' },
+    { name: 'vistrace-auth' },
   ),
 );
 

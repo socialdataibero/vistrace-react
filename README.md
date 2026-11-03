@@ -1,10 +1,10 @@
-# VizCanvas
+# vistrace
 
-VizCanvas es una aplicacion web para explorar, transformar y presentar datos de forma visual. Combina un lienzo de nodos, ejecucion local con DuckDB y asistencia de IA para construir flujos de analisis sin depender solo de SQL manual.
+vistrace es una aplicacion web para explorar, transformar y presentar datos de forma visual. Combina un lienzo de nodos, ejecucion local con DuckDB y asistencia de IA para construir flujos de analisis sin depender solo de SQL manual.
 
 ## Que hace esta aplicacion
 
-Con VizCanvas puedes:
+Con vistrace puedes:
 
 - cargar archivos locales como CSV, JSON, TSV y Parquet;
 - crear flujos visuales con nodos como `Source`, `Group by + Summarize`, `Interactive filter`, `View table`, `Make chart`, `Join tables` y `Custom SQL`;
@@ -44,8 +44,8 @@ Si usas `nvm`, el repo incluye `.nvmrc` con la version recomendada.
 ### 1. Clona el repositorio
 
 ```bash
-git clone <TU_URL_DE_GITHUB> vizcanvas
-cd vizcanvas
+git clone <TU_URL_DE_GITHUB> vistrace
+cd vistrace
 ```
 
 ### 2. Usa Node.js 24
