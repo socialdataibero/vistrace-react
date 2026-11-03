@@ -219,7 +219,7 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
                     setSlug(e.target.value);
                     setSlugEdited(true);
                   }}
-                  pattern="[a-z0-9-]+"
+                  pattern="[a-z0-9\-]+"
                   required
                 />
               </div>
