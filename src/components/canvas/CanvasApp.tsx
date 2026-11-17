@@ -38,7 +38,7 @@ import {
 import { getDefaultNodeConfig } from "@/lib/nodeConfig";
 import {
   buildPersistedAppState,
-  mergePersistedStates,
+  readPersistedSnapshots,
   parsePersistedAppState,
   PersistedAppState,
 } from "@/lib/persistence";
@@ -52,7 +52,8 @@ import { useMapFlowCreation } from "@/hooks/useMapFlowCreation";
 import { useAIPlanOrchestration } from "@/hooks/useAIPlanOrchestration";
 import { v4 as uuidv4 } from "uuid";
 import IberoPublishDialog from "@/components/panels/IberoPublishDialog";
-import { useIberoStore } from "@/stores/iberoStore";
+import { replaceIberoPages } from "@/lib/iberoCanvas";
+import { iberoWorkspace, useIberoStore } from "@/stores/iberoStore";
 import { FiUploadCloud } from "react-icons/fi";
 
 export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: PersistedAppState | null } = {}) {
@@ -81,11 +82,13 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
   const [nodeSizes, setNodeSizes] = useState<Record<string, { width: number; height: number }>>({});
   const [frames, setFrames] = useState<CanvasFrame[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ title: string; message: string; type?: "info" | "error" | "warning" } | null>(null);
   const sampleDataRestoreAttemptedRef = useRef(false);
   const framesRef = useRef<CanvasFrame[]>([]);
   const handoffRawRef = useRef<string | null>(null);
   const iberoContext = useIberoStore((s) => s.context);
+  const workspace = iberoWorkspace(iberoContext);
   const [iberoPublishOpen, setIberoPublishOpen] = useState(false);
 
   useEffect(() => {
@@ -167,20 +170,20 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
 
   const persistCanvasStateNow = useCallback(() => {
     if (!hydrated || isGuest) return;
-    void saveRemoteCanvasState(buildRemoteSaveState()).catch((err) => {
-      console.warn("[persist] No se pudo guardar el canvas:", err);
+    void saveRemoteCanvasState(buildRemoteSaveState(), workspace).catch((err) => {
+      console.warn("[persist] Failed to save canvas:", err);
     });
-  }, [hydrated, isGuest, buildRemoteSaveState]);
+  }, [hydrated, isGuest, buildRemoteSaveState, workspace]);
 
   useEffect(() => {
     if (!hydrated || isGuest) return;
     const timeout = setTimeout(() => {
-      void saveRemoteCanvasState(buildRemoteSaveState()).catch((err) => {
-        console.warn("[persist] Autosave del canvas falló:", err);
+      void saveRemoteCanvasState(buildRemoteSaveState(), workspace).catch((err) => {
+        console.warn("[persist] Canvas autosave failed:", err);
       });
     }, 1500);
     return () => clearTimeout(timeout);
-  }, [hydrated, isGuest, buildRemoteSaveState]);
+  }, [hydrated, isGuest, buildRemoteSaveState, workspace]);
 
   const handleSaveSnapshot = useCallback(() => {
     const snapshotData = JSON.stringify(buildCurrentPersistedState());
@@ -734,15 +737,17 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
 
     const stored = sessionStorage.getItem("vistrace-handoff");
     if (stored) handoffRawRef.current = stored;
-    sessionStorage.removeItem("vistrace-handoff");
     const handoffRaw = handoffRawRef.current;
-    const authRaw = localStorage.getItem("vistrace-auth");
-    localStorage.clear();
-    if (authRaw) localStorage.setItem("vistrace-auth", authRaw);
 
     let cancelled = false;
     void (async () => {
-      const remote = await fetchRemoteCanvasState().catch(() => null);
+      let remote: PersistedAppState | null;
+      try {
+        remote = await fetchRemoteCanvasState(workspace);
+      } catch (error) {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : "No se pudo cargar el canvas. Intenta de nuevo.");
+        return;
+      }
       if (cancelled) return;
       const blankPageId = uuidv4();
       const blankState = buildPersistedAppState({
@@ -760,20 +765,21 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
       });
 
       const handoffState = handoffRaw ? parsePersistedAppState(handoffRaw) : null;
-      canvasStoreApi.setState({ snapshots: [] });
+      canvasStoreApi.setState({ snapshots: readPersistedSnapshots() });
       if (handoffState && remote) {
-        applyPersistedState(mergePersistedStates(remote, handoffState));
+        applyPersistedState(replaceIberoPages(remote, handoffState));
       } else if (handoffState) {
         applyPersistedState(handoffState);
       } else {
         applyPersistedState(remote ?? blankState);
       }
+      sessionStorage.removeItem("vistrace-handoff");
       setHydrated(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [hydrated, applyPersistedState, guestSnapshot, applyGuestState]);
+  }, [hydrated, applyPersistedState, guestSnapshot, applyGuestState, workspace]);
 
   useEffect(() => {
     if (!hydrated || !ready || isGuest) return;
@@ -806,19 +812,30 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
         });
       }
     })();
-  }, [hydrated, ready, tables, uploadFile]);
+  }, [hydrated, ready, tables, uploadFile, isGuest]);
 
   useEffect(() => {
     if (!hydrated || !ready || isGuest) return;
     void dagStoreApi.getState().executeAll();
   }, [hydrated, ready, isGuest, tables]);
 
-  if (loading && !ready && !isGuest) {
+  if (loadError) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50 text-gray-900">
+        <div className="max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <p role="alert" className="mb-4 text-red-600">{loadError}</p>
+          <button onClick={() => window.location.reload()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700">Reintentar</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hydrated || (loading && !ready && !isGuest)) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-          <p className="text-sm text-gray-500">Initializing DuckDB...</p>
+          <p className="text-sm text-gray-500">Cargando canvas...</p>
         </div>
       </div>
     );
@@ -960,10 +977,13 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
       {shortcutsModalOpen && <ShortcutsModal onClose={toggleShortcutsModal} />}
       {iberoPublishOpen && (
         <IberoPublishDialog
+          key={currentPageId}
           nodes={nodes}
           pages={pages}
+          currentPageId={currentPageId}
           selectedNodeId={selectedNodeId}
           buildState={buildRemoteSaveState}
+          onPublished={(analysisId) => canvasStoreApi.setState({ pages: pages.map((page) => page.id === currentPageId ? { ...page, iberoAnalysisId: analysisId } : page) })}
           onClose={() => setIberoPublishOpen(false)}
         />
       )}

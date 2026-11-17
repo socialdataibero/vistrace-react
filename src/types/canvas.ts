@@ -2,6 +2,8 @@ export interface CanvasPage {
   id: string;
   name: string;
   order: number;
+  iberoAnalysisId?: string;
+  iberoSourcePageId?: string;
 }
 
 export interface CanvasFrame {
