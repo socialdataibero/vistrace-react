@@ -33,19 +33,21 @@ function nodeLabel(node: DAGNode, pages: CanvasPage[]): string {
 interface IberoPublishDialogProps {
   nodes: Record<string, DAGNode>;
   pages: CanvasPage[];
+  currentPageId: string;
+  onPublished: (analysisId: string) => void;
   selectedNodeId: string | null;
   buildState: () => PersistedAppState;
   onClose: () => void;
 }
 
-export default function IberoPublishDialog({ nodes, pages, selectedNodeId, buildState, onClose }: IberoPublishDialogProps) {
+export default function IberoPublishDialog({ nodes, pages, currentPageId, selectedNodeId, buildState, onPublished, onClose }: IberoPublishDialogProps) {
   const context = useIberoStore((s) => s.context);
   const tableRefs = useIberoStore((s) => s.tables);
   const setAnalysis = useIberoStore((s) => s.setAnalysis);
 
   const candidates = useMemo(
-    () => Object.values(nodes).filter((n) => n.status === "success" && !!n.result?.sql),
-    [nodes]
+    () => Object.values(nodes).filter((n) => n.pageId === currentPageId && n.status === "success" && !!n.result?.sql),
+    [nodes, currentPageId]
   );
 
   const [resultNodeId, setResultNodeId] = useState(() => {
@@ -53,11 +55,11 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
     return (candidates.find((n) => n.type === "table") ?? candidates[0])?.id ?? "";
   });
   const [title, setTitle] = useState(context?.analysisTitle ?? "");
-  const [slug, setSlug] = useState(context?.analysisTitle ? slugify(context.analysisTitle) : "");
-  const [slugEdited, setSlugEdited] = useState(false);
-  const [folder, setFolder] = useState("vistrace");
-  const [description, setDescription] = useState("");
-  const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC">("PRIVATE");
+  const [slug, setSlug] = useState(context?.analysisSlug ?? (context?.analysisTitle ? slugify(context.analysisTitle) : ""));
+  const [slugEdited, setSlugEdited] = useState(!!context?.analysisId);
+  const [folder, setFolder] = useState(context?.analysisFolder ?? "vistrace");
+  const [description, setDescription] = useState(context?.analysisDescription ?? "");
+  const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC">(context?.analysisVisibility ?? "PRIVATE");
   const [mode, setMode] = useState<"update" | "create">(context?.analysisId ? "update" : "create");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
   }, [buildState, context, resultNodeId, tableRefs]);
 
   const canPublish = canPublishToIbero(context);
-  const sourceResourceId = preview?.recipe.tables[0]?.resourceId ?? context?.resourceId ?? "";
+  const sourceResourceId = preview?.recipe.tables[0]?.resourceId ?? "";
 
   const onTitleChange = (value: string) => {
     setTitle(value);
@@ -91,8 +93,12 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
   const submit = async () => {
     if (!canPublishToIbero(context) || !preview) return;
     const node = nodes[resultNodeId];
-    if (!node?.result?.sql) {
+    if (!node?.result?.sql || node.pageId !== currentPageId) {
       setError("Ejecuta el nodo antes de guardarlo.");
+      return;
+    }
+    if (preview.missingTables.length > 0) {
+      setError(`No se puede guardar: estas tablas no están vinculadas al dataset actual de Ibero Data: ${preview.missingTables.join(", ")}.`);
       return;
     }
     if (!sourceResourceId) {
@@ -114,7 +120,13 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
         recipe: preview.recipe,
         update: mode === "update",
       });
-      setAnalysis(analysis.id, analysis.title);
+      setAnalysis(analysis.id, analysis.title, {
+        analysisSlug: analysis.slug,
+        analysisFolder: folder.trim(),
+        analysisVisibility: visibility,
+        analysisDescription: description.trim(),
+      });
+      onPublished(analysis.id);
       setSaved({ title: analysis.title, rows: analysis.resultRowCount });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el análisis.");
@@ -150,7 +162,7 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
           <div className="px-5 py-6">
             <p className="text-sm text-slate-700">
               Se guardó <span className="font-semibold">{saved.title}</span> en Ibero Data
-              {saved.rows != null ? ` (${saved.rows.toLocaleString("es-MX")} filas)` : ""}. Ya aparece en los análisis del dataset.
+              {saved.rows != null ? ` (${saved.rows.toLocaleString("es-MX")} filas)` : ""}. Aparecerá en Ibero Data al recargar la página del dataset.
             </p>
             <div className="mt-4 flex justify-end">
               <button onClick={onClose} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">
@@ -161,7 +173,7 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
         ) : !canPublish ? (
           <div className="px-5 py-6 text-sm text-slate-600">
             {context && !context.canPublish
-              ? `Puedes explorar estos datos, pero para guardar análisis en Ibero Data necesitas el rol de Administrador o Editor en .`
+              ? `Puedes explorar estos datos, pero para guardar análisis en Ibero Data necesitas el rol de Administrador o Editor en esta organización.`
               : context
               ? "Tu permiso para guardar en Ibero Data expiró. Vuelve a abrir vistrace desde el recurso en Ibero Data."
               : "Este canvas no está conectado a Ibero Data. Ábrelo desde un recurso con \"Crear análisis con vistrace\"."}
@@ -179,11 +191,25 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
                 <span className={labelClass}>Acción</span>
                 <div className="flex gap-4 text-sm text-slate-700">
                   <label className="flex items-center gap-1.5">
-                    <input type="radio" checked={mode === "update"} onChange={() => setMode("update")} />
+                    <input type="radio" checked={mode === "update"} onChange={() => {
+                      setMode("update");
+                      setSlug(context.analysisSlug ?? slugify(context.analysisTitle ?? title));
+                      setSlugEdited(true);
+                      setFolder(context.analysisFolder ?? "vistrace");
+                      setVisibility(context.analysisVisibility ?? "PRIVATE");
+                      setDescription(context.analysisDescription ?? "");
+                    }} />
                     Actualizar “{context.analysisTitle}”
                   </label>
                   <label className="flex items-center gap-1.5">
-                    <input type="radio" checked={mode === "create"} onChange={() => setMode("create")} />
+                    <input type="radio" checked={mode === "create"} onChange={() => {
+                      setMode("create");
+                      setSlug(slugify(title));
+                      setSlugEdited(false);
+                      setFolder("vistrace");
+                      setVisibility("PRIVATE");
+                      setDescription("");
+                    }} />
                     Crear uno nuevo
                   </label>
                 </div>
@@ -193,7 +219,7 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
             <div>
               <label className={labelClass} htmlFor="ibero-result-node">Nodo con el resultado</label>
               {candidates.length === 0 ? (
-                <p className="text-xs text-amber-700">Ejecuta al menos un nodo del canvas para poder guardarlo.</p>
+                <p className="text-xs text-amber-700">Ejecuta al menos un nodo de esta página para poder guardarlo.</p>
               ) : (
                 <select id="ibero-result-node" className={inputClass} value={resultNodeId} onChange={(e) => setResultNodeId(e.target.value)}>
                   {candidates.map((n) => (
@@ -249,9 +275,7 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
 
             {preview && preview.missingTables.length > 0 && (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Estas tablas no vienen de este dataset: <strong>{preview.missingTables.join(", ")}</strong>. El resultado se
-                guarda completo, pero quien reabra el análisis en otra instancia de vistrace no podrá recalcular los nodos
-                que las usan.
+                No se puede guardar: estas tablas no están vinculadas al dataset actual de Ibero Data: <strong>{preview.missingTables.join(", ")}</strong>.
               </p>
             )}
             {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">{error}</p>}
@@ -262,7 +286,7 @@ export default function IberoPublishDialog({ nodes, pages, selectedNodeId, build
               </button>
               <button
                 type="submit"
-                disabled={saving || !formValid}
+                disabled={saving || !formValid || !sourceResourceId || !!preview?.missingTables.length}
                 className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <FiUploadCloud size={15} />

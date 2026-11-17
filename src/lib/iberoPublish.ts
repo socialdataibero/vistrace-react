@@ -1,6 +1,8 @@
+import { apiFetch } from "@/lib/session";
 import { v4 as uuidv4 } from "uuid";
 import type { PersistedAppState } from "@/lib/persistence";
-import type { FromConfig } from "@/types/nodes";
+import { sqlTableReferences } from "@/lib/sqlTables";
+import type { FromConfig, SQLConfig } from "@/types/nodes";
 import { getToken } from "@/stores/authStore";
 import type { IberoContext, IberoTableRef } from "@/stores/iberoStore";
 
@@ -73,9 +75,13 @@ export function withFreshIds(state: PersistedAppState): PersistedAppState {
 export function collectSourceTables(state: PersistedAppState): string[] {
   const names = new Set<string>();
   for (const node of Object.values(state.dag.nodes)) {
-    if (node.type !== "from") continue;
-    const tableName = (node.config as FromConfig).tableName;
-    if (tableName) names.add(tableName);
+    if (node.type === "from") {
+      const tableName = (node.config as FromConfig).tableName;
+      if (tableName) names.add(tableName);
+    }
+    if (node.type === "sql") {
+      for (const ref of sqlTableReferences((node.config as SQLConfig).query)) names.add(ref.name);
+    }
   }
   return [...names].sort();
 }
@@ -93,7 +99,8 @@ export function buildIberoRecipe(
   const tables: IberoCanvasRecipe["tables"] = [];
   const missingTables: string[] = [];
   for (const tableName of collectSourceTables(state)) {
-    const ref = tableRefs[tableName];
+    const mappedName = Object.keys(tableRefs).find((name) => name.toLowerCase() === tableName.toLowerCase());
+    const ref = mappedName ? tableRefs[mappedName] : undefined;
     if (ref && ref.datasetId === datasetId) tables.push({ tableName, resourceId: ref.resourceId });
     else missingTables.push(tableName);
   }
@@ -128,7 +135,7 @@ export interface PublishedIberoAnalysis {
 export async function publishCanvasToIbero(input: PublishToIberoInput): Promise<PublishedIberoAnalysis> {
   const token = getToken();
   const { context } = input;
-  const res = await fetch(`${API_BASE}/ibero/analyses`, {
+  const res = await apiFetch(`${API_BASE}/ibero/analyses`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -145,7 +152,7 @@ export async function publishCanvasToIbero(input: PublishToIberoInput): Promise<
       title: input.title,
       slug: input.slug,
       folder: input.folder,
-      description: input.description || undefined,
+      description: input.update ? input.description ?? "" : input.description || undefined,
       visibility: input.visibility,
       recipe: input.recipe,
     }),
