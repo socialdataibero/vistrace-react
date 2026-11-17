@@ -2,7 +2,9 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { useAuthStore, isTokenUsable, type AuthUser } from "@/stores/authStore";
+import { useAuthStore } from "@/stores/authStore";
+import { useSessionLifecycle } from "@/hooks/useSessionLifecycle";
+import { IberoHandoffError, receiveIberoHandoff } from "@/lib/iberoHandoff";
 import { fetchSharedView } from "@/db/shares";
 import type { PersistedAppState } from "@/lib/persistence";
 import LoginPage from "@/components/auth/LoginPage";
@@ -10,14 +12,7 @@ import { v4 as uuidv4 } from "uuid";
 import { buildPersistedAppState } from "@/lib/persistence";
 import type { FromConfig, GroupConfig, SQLConfig, TableDisplayConfig, ColumnFilter, AggregationConfig, JoinConfig } from "@/types/nodes";
 import type { DAGNode, DAGEdge } from "@/engine/types";
-import { parseIberoContext, useIberoStore, type IberoContext } from "@/stores/iberoStore";
-import { resourceIdFromDownloadUrl, withFreshIds } from "@/lib/iberoPublish";
-
-function registerIberoTable(context: IberoContext | null, tableName: string | null | undefined, downloadUrl: string) {
-  const resourceId = resourceIdFromDownloadUrl(downloadUrl);
-  if (!context || !tableName || !resourceId) return;
-  useIberoStore.getState().registerTable(tableName, { resourceId, datasetId: context.datasetId });
-}
+import { useIberoStore, iberoWorkspace } from "@/stores/iberoStore";
 
 function buildAnalysisPipeline(
   recipe: Record<string, unknown>,
@@ -186,13 +181,11 @@ const CanvasApp = dynamic(() => import("@/components/canvas/CanvasApp"), {
     <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
       <div className="flex flex-col items-center gap-4">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-        <p className="text-sm text-gray-500">Loading vistrace...</p>
+        <p className="text-sm text-gray-500">Cargando vistrace...</p>
       </div>
     </div>
   ),
 });
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
 
 function Spinner({ label }: { label: string }) {
   return (
@@ -207,12 +200,13 @@ function Spinner({ label }: { label: string }) {
 
 export default function Home() {
   const token = useAuthStore((s) => s.token);
-  const setSession = useAuthStore((s) => s.setSession);
-  const [status, setStatus] = useState<"idle" | "auth" | "import" | "done">("idle");
+  const sessionChecked = useSessionLifecycle();
+  const context = useIberoStore((s) => s.context);
+  const [status, setStatus] = useState<"idle" | "auth" | "import" | "done">(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("handoff") ? "auth" : "idle");
   const [handoffError, setHandoffError] = useState<string | null>(null);
   const handoffProcessedRef = useRef(false);
 
-  const [shareStatus, setShareStatus] = useState<"none" | "loading" | "error">("none");
+  const [shareStatus, setShareStatus] = useState<"none" | "loading" | "error">(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("share") ? "loading" : "none");
   const [guestSnapshot, setGuestSnapshot] = useState<PersistedAppState | null>(null);
   const shareProcessedRef = useRef(false);
 
@@ -222,7 +216,6 @@ export default function Home() {
     if (shareProcessedRef.current) return;
     shareProcessedRef.current = true;
 
-    setShareStatus("loading");
     fetchSharedView(shareToken)
       .then((snapshot) => {
         if (!snapshot) {
@@ -243,193 +236,21 @@ export default function Home() {
 
     if (handoffProcessedRef.current) return;
     handoffProcessedRef.current = true;
-    const existingToken = isTokenUsable(token) ? token : null;
-
-    setStatus("auth");
-
-    fetch(`${API_BASE}/users/ibero-sign-in`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ handoffToken: handoff }),
-    })
-      .then(async (res) => {
-        const data = await res.json() as {
-          token?: string;
-          message?: string[];
-          iberoDownloadToken?: string;
-          user?: AuthUser;
-          iberoContext?: unknown;
-          canvas?: { state?: unknown; tables?: { tableName: string; resourceId: string; downloadUrl: string }[] } | null;
-        };
-        // Never log the response body: it carries the session and download tokens.
-        console.log("[handoff] ibero-sign-in status:", res.status, "existing session:", !!existingToken);
-        if (!res.ok || !data.token) {
-          if (!existingToken) {
-            const msg = Array.isArray(data.message) ? data.message[0] : (data.message ?? `Error ${res.status}`);
-            setHandoffError(String(msg));
-            setStatus("idle");
-            return;
-          }
-          console.warn("[handoff] could not consume the Ibero Data token; continuing with the existing session");
-        }
-        const sessionToken = existingToken ?? data.token!;
-        const iberoContext = parseIberoContext(data.iberoContext);
-        if (iberoContext) useIberoStore.getState().setContext(iberoContext);
-
-        const resourceUrl = params.get("resource_url");
-        const resourceName = params.get("resource_name");
-        const resourceFormat = params.get("resource_format") ?? "csv";
-        const sourceResourceUrl = params.get("source_resource_url");
-        const sourceResourceName = params.get("source_resource_name");
-        const pipelineB64 = params.get("pipeline");
-        const joinResourcesB64 = params.get("join_resources");
-        console.log("[handoff] resource_url:", resourceUrl, "source:", sourceResourceUrl, "pipeline:", !!pipelineB64);
+    receiveIberoHandoff(params, buildAnalysisPipeline, () => setStatus("import"))
+      .then(() => {
         window.history.replaceState({}, "", window.location.pathname);
-
-        setStatus("import");
-
-        if (resourceUrl && resourceName) {
-          try {
-            const importRes = await fetch(`${API_BASE}/tables/import-from-url`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${sessionToken}`,
-              },
-              body: JSON.stringify({
-                url: resourceUrl,
-                tableName: resourceName,
-                format: resourceFormat,
-                downloadToken: data.iberoDownloadToken ?? "",
-              }),
-            });
-            if (!importRes.ok) {
-              const errBody = await importRes.json().catch(() => ({})) as { message?: string };
-              console.warn("[handoff] import result failed:", importRes.status, errBody);
-            } else {
-              const importData = await importRes.json() as { tableName?: string; rowCount?: number; skipped?: boolean };
-              registerIberoTable(iberoContext, importData.tableName, resourceUrl);
-              console.log(importData.skipped ? "[handoff] result already exists, not imported:" : "[handoff] import result ok:", importData);
-            }
-          } catch (e) {
-            console.warn("[handoff] import result network error:", e);
-          }
-        }
-        let importedSourceTableName: string | null = null;
-
-        if (sourceResourceUrl && sourceResourceName) {
-          try {
-            const srcRes = await fetch(`${API_BASE}/tables/import-from-url`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${sessionToken}`,
-              },
-              body: JSON.stringify({
-                url: sourceResourceUrl,
-                tableName: sourceResourceName,
-                format: "parquet",
-                downloadToken: data.iberoDownloadToken ?? "",
-              }),
-            });
-            if (srcRes.ok) {
-              const srcData = await srcRes.json() as { tableName?: string; skipped?: boolean };
-              importedSourceTableName = srcData.tableName ?? null;
-              registerIberoTable(iberoContext, srcData.tableName, sourceResourceUrl);
-              console.log(srcData.skipped ? "[handoff] source already exists, not reimported:" : "[handoff] import source ok:", srcData);
-            }
-          } catch (e) {
-            console.warn("[handoff] import source network error:", e);
-          }
-        }
-        const joinTableNamesByAlias: Record<string, string> = {};
-        if (joinResourcesB64) {
-          try {
-            const standardB64 = joinResourcesB64.replace(/-/g, "+").replace(/_/g, "/");
-            const joinResources = JSON.parse(atob(standardB64)) as { alias: string; url: string; name: string }[];
-            for (const jr of joinResources) {
-              try {
-                const jRes = await fetch(`${API_BASE}/tables/import-from-url`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${sessionToken}`,
-                  },
-                  body: JSON.stringify({
-                    url: jr.url,
-                    tableName: jr.name,
-                    format: "parquet",
-                    downloadToken: data.iberoDownloadToken ?? "",
-                  }),
-                });
-                if (jRes.ok) {
-                  const jData = await jRes.json() as { tableName?: string; skipped?: boolean };
-                  if (jData.tableName) joinTableNamesByAlias[jr.alias] = jData.tableName;
-                  registerIberoTable(iberoContext, jData.tableName, jr.url);
-                  console.log(jData.skipped ? "[handoff] join resource already exists:" : "[handoff] import join resource ok:", jr.alias, jData);
-                }
-              } catch (e) {
-                console.warn("[handoff] import join resource network error:", jr.alias, e);
-              }
-            }
-          } catch (e) {
-            console.warn("[handoff] could not parse join_resources:", e);
-          }
-        }
-
-        if (pipelineB64 && sourceResourceName) {
-          try {
-            const standardB64 = pipelineB64.replace(/-/g, "+").replace(/_/g, "/");
-            const recipe = JSON.parse(atob(standardB64)) as Record<string, unknown>;
-            console.log("[handoff] recipe keys:", Object.keys(recipe));
-            buildAnalysisPipeline(recipe, importedSourceTableName ?? sourceResourceName, resourceName ?? "resultado", joinTableNamesByAlias);
-          } catch (e) {
-            console.warn("[handoff] could not build pipeline from recipe:", e);
-          }
-        }
-
-        if (data.canvas?.state && typeof data.canvas.state === "object") {
-          for (const table of data.canvas.tables ?? []) {
-            try {
-              const tRes = await fetch(`${API_BASE}/tables/import-from-url`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${sessionToken}`,
-                },
-                body: JSON.stringify({
-                  url: table.downloadUrl,
-                  tableName: table.tableName,
-                  format: "parquet",
-                  downloadToken: data.iberoDownloadToken ?? "",
-                }),
-              });
-              if (tRes.ok) {
-                const tData = await tRes.json() as { tableName?: string };
-                if (iberoContext && tData.tableName) {
-                  useIberoStore.getState().registerTable(tData.tableName, { resourceId: table.resourceId, datasetId: iberoContext.datasetId });
-                }
-              } else {
-                console.warn("[handoff] import canvas table failed:", table.tableName, tRes.status);
-              }
-            } catch (e) {
-              console.warn("[handoff] import canvas table network error:", table.tableName, e);
-            }
-          }
-          sessionStorage.setItem("vistrace-handoff", JSON.stringify(withFreshIds(data.canvas.state as PersistedAppState)));
-        }
-
-        if (!existingToken && data.token) {
-          setSession(data.token, data.user ?? null, "ibero");
-        }
         setStatus("done");
       })
-      .catch((e) => {
-        console.error("[handoff] network error:", e);
-        setHandoffError("cannot complete handoff due to network error");
+      .catch((error) => {
+        useAuthStore.getState().clearToken();
+        window.history.replaceState({}, "", window.location.pathname);
+        console.error("[handoff] Failed to open Ibero analysis:", error);
+        setHandoffError(error instanceof IberoHandoffError ? error.message : "No se pudo abrir el análisis desde Ibero Data. Vuelve a intentarlo desde la página del dataset.");
         setStatus("idle");
       });
-  }, [token, setSession]);
+  }, []);
+
+  if (!sessionChecked) return <Spinner label="Comprobando sesión..." />;
 
   if (shareStatus === "loading") return <Spinner label="Cargando visualización compartida..." />;
   if (shareStatus === "error") {
@@ -455,12 +276,12 @@ export default function Home() {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4 text-center">
-          <p className="text-sm text-red-600">{handoffError}</p>
+          <p role="alert" className="text-sm text-red-600">{handoffError}</p>
           <button
             onClick={() => setHandoffError(null)}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"
           >
-            Ir al login
+            Ir al inicio de sesión
           </button>
         </div>
       </div>
@@ -468,5 +289,5 @@ export default function Home() {
   }
 
   if (!token) return <LoginPage />;
-  return <CanvasApp />;
+  return <CanvasApp key={`${token}:${iberoWorkspace(context) ?? "default"}`} />;
 }

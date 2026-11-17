@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/session";
 import { createStore, useStore } from "@/lib/createStore";
 import { DataTable, ColumnStats } from "@/types/data";
 import { SuggestedMapFlow } from "@/lib/columnSemantics";
@@ -54,7 +55,7 @@ const dataStore = createStore<DataState>((set, get) => ({
     const endpoint = table?.filename
       ? `${API_BASE}/files/${encodeURIComponent(table.filename)}`
       : `${API_BASE}/tables/${encodeURIComponent(tableName)}`;
-    const res = await fetch(endpoint, { method: "DELETE", headers: authHeaders() });
+    const res = await apiFetch(endpoint, { method: "DELETE", headers: authHeaders() });
     if (!res.ok && res.status !== 404) throw new Error(`Error ${res.status}`);
     set((state) => ({ tables: state.tables.filter((t) => t.name !== tableName) }));
   },
@@ -79,7 +80,7 @@ const dataStore = createStore<DataState>((set, get) => ({
 
   refreshTables: async () => {
     try {
-      const res = await fetch(`${API_BASE}/tables`, { headers: authHeaders() });
+      const res = await apiFetch(`${API_BASE}/tables`, { headers: authHeaders() });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const tables: DataTable[] = await res.json();
       set({ tables });
@@ -90,7 +91,7 @@ const dataStore = createStore<DataState>((set, get) => ({
 
   refreshMapFlows: async () => {
     try {
-      const res = await fetch(`${API_BASE}/analysis/map-flows`, { headers: authHeaders() });
+      const res = await apiFetch(`${API_BASE}/analysis/map-flows`, { headers: authHeaders() });
       if (!res.ok) return;
       const flows: SuggestedMapFlow[] = await res.json();
 

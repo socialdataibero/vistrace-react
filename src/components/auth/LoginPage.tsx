@@ -1,5 +1,7 @@
 "use client";
 
+import { SESSION_MESSAGE_KEY, apiFetch } from "@/lib/session";
+
 import { useState } from "react";
 import { FiEye, FiEyeOff, FiAlertCircle, FiLoader, FiCheckCircle } from "react-icons/fi";
 import { useAuthStore, type AuthUser } from "@/stores/authStore";
@@ -30,7 +32,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => typeof window === "undefined" ? null : sessionStorage.getItem(SESSION_MESSAGE_KEY));
   const [loading, setLoading] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
@@ -41,7 +43,7 @@ export default function LoginPage() {
     setRegisterSuccess(false);
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/users/sign-in`, {
+      const res = await apiFetch(`${API_BASE}/users/sign-in`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),

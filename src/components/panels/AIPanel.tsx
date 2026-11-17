@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "@/lib/session";
+
 import React, { useState, useRef, useEffect } from "react";
 import { buildAIGraphContextNodes, normalizeAIGraphPlan, AIGraphPlan } from "@/lib/aiGraph";
 import { useCanvasStore } from "@/stores/canvasStore";
@@ -79,7 +81,7 @@ export default function AIPanel({ onApplyPlan }: Props) {
 
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api"}/ai/chat`, {
+          res = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api"}/ai/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
             cache: "no-store",

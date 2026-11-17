@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/session";
 import { DataTable } from "@/types/data";
 import { ColumnInfo } from "@/types/nodes";
 import { getToken } from "@/stores/authStore";
@@ -21,7 +22,7 @@ export async function loadDataFile(file: File): Promise<DataTable> {
   body.append("file", file);
 
   const token = getToken();
-  const res = await fetch(`${API_BASE}/files/upload`, {
+  const res = await apiFetch(`${API_BASE}/files/upload`, {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body,

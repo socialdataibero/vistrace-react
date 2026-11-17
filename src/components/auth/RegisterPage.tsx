@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "@/lib/session";
+
 import { useState } from "react";
 import { FiEye, FiEyeOff, FiAlertCircle, FiLoader, FiArrowLeft } from "react-icons/fi";
 import { LogoMark } from "./LoginPage";
@@ -37,6 +39,10 @@ export default function RegisterPage({
     setError(null);
 
     const cleanUsername = username.trim().toLowerCase();
+    if (cleanUsername.includes("@")) {
+      setError("El usuario no puede contener @. Ese formato está reservado para cuentas de Ibero Data.");
+      return;
+    }
     if (/\s/.test(cleanUsername)) {
       setError("El usuario no puede contener espacios");
       return;
@@ -52,7 +58,7 @@ export default function RegisterPage({
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/users`, {
+      const res = await apiFetch(`${API_BASE}/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), username: cleanUsername, password }),

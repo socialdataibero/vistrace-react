@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/session";
 /**
  * DuckDB client — all operations are delegated to the NestJS server.
  * The function signatures are intentionally kept identical to the old
@@ -21,7 +22,7 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await apiFetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
@@ -36,7 +37,7 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  const res = await apiFetch(`${API_BASE}${path}`, { headers: authHeaders() });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(
@@ -47,7 +48,7 @@ async function apiGet<T>(path: string): Promise<T> {
 }
 
 async function apiDelete(path: string): Promise<void> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await apiFetch(`${API_BASE}${path}`, {
     method: "DELETE",
     headers: authHeaders(),
   });

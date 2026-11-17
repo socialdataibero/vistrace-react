@@ -14,7 +14,6 @@ export function useDuckDB(options?: { skip?: boolean }) {
 
   useEffect(() => {
     if (skip) {
-      setReady(true);
       return;
     }
     if (initRef.current) return;

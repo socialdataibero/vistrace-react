@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/session";
 
 import { getToken } from "@/stores/authStore";
 import { PersistedAppState, parsePersistedAppState } from "@/lib/persistence";
@@ -11,7 +12,7 @@ function shareCacheKey(token: string): string {
 
 export async function createShare(snapshot: PersistedAppState): Promise<{ token: string; url: string }> {
   const authToken = getToken();
-  const res = await fetch(`${API_BASE}/shares`, {
+  const res = await apiFetch(`${API_BASE}/shares`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -32,7 +33,7 @@ export async function fetchSharedView(token: string): Promise<PersistedAppState 
   const cached = sessionStorage.getItem(shareCacheKey(token));
   if (cached) return parsePersistedAppState(cached);
 
-  const res = await fetch(`${API_BASE}/shares/${encodeURIComponent(token)}`);
+  const res = await apiFetch(`${API_BASE}/shares/${encodeURIComponent(token)}`);
   if (!res.ok) return null;
   const data = (await res.json()) as { snapshot?: unknown };
   if (!data.snapshot) return null;

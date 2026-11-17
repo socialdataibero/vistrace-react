@@ -1,5 +1,7 @@
 "use client";
 
+import { endSession, apiFetch } from "@/lib/session";
+
 import { useEffect, useRef, useState } from "react";
 import {
   FiUser,
@@ -32,7 +34,6 @@ export default function UserMenu() {
   const storedUser = useAuthStore((s) => s.user);
   const source = useAuthStore((s) => s.source);
   const setUser = useAuthStore((s) => s.setUser);
-  const clearToken = useAuthStore((s) => s.clearToken);
 
   const user = storedUser ?? (token ? userFromToken(token) : null);
   const isIbero = source === "ibero";
@@ -68,7 +69,7 @@ export default function UserMenu() {
     setSaving(true);
     setSaveMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/users/profile`, {
+      const res = await apiFetch(`${API_BASE}/users/profile`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -105,13 +106,7 @@ export default function UserMenu() {
   }
 
   function handleLogout() {
-    clearToken();
-    try {
-      localStorage.clear();
-      sessionStorage.clear();
-    } catch {
-    }
-    window.location.replace(window.location.pathname);
+    endSession();
   }
 
   return (

@@ -1,4 +1,6 @@
 import "@/lib/legacyStorage";
+import { clearUserStorage } from "@/lib/userStorage";
+import { useIberoStore } from "@/stores/iberoStore";
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -21,30 +23,49 @@ interface AuthState {
   clearToken: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
+let clearLocalAuth: () => void;
+
+export function forgetLocalSession(): void {
+  clearLocalAuth();
+}
+
+export const useAuthStore = create<AuthState>()((setLocal, getLocal, api) => {
+  clearLocalAuth = () => setLocal({ token: null, user: null, source: null });
+  return persist<AuthState>(
+    (set, get) => ({
       token: null,
       user: null,
       source: null,
       setToken: (token) => set({ token }),
-      setSession: (token, user, source) => set({ token, user, source }),
+      setSession: (token, user, source) => {
+        const previous = get().user?.username ?? (get().token ? userFromToken(get().token!)?.username : null);
+        const incoming = user?.username ?? userFromToken(token)?.username;
+        if (previous !== incoming) {
+          clearUserStorage();
+          useIberoStore.setState({ context: null, tables: {} });
+        }
+        if (typeof window !== "undefined") sessionStorage.removeItem("vistrace-login-required");
+        set({ token, user, source });
+      },
       setUser: (user) => set({ user }),
-      clearToken: () => set({ token: null, user: null, source: null }),
+      clearToken: () => {
+        clearUserStorage();
+        useIberoStore.setState({ context: null, tables: {} });
+        set({ token: null, user: null, source: null });
+      },
     }),
     { name: 'vistrace-auth' },
-  ),
-);
+  )(setLocal, getLocal, api);
+});
 
 export function getToken(): string | null {
   return useAuthStore.getState().token;
 }
 
-/** True si el JWT existe y no está expirado (sin validar la firma — eso lo hace el servidor). */
 export function isTokenUsable(token: string | null): token is string {
   if (!token) return false;
   try {
-    const payload = JSON.parse(atob(token.split('.')[1])) as { exp?: number };
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
     return typeof payload.exp !== 'number' || payload.exp * 1000 > Date.now();
   } catch {
     return false;
