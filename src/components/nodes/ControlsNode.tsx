@@ -176,7 +176,7 @@ export default function ControlsNodeBody({ node, expandTablePreview = false }: P
               type="range"
               min={ctrl.min || 0}
               max={ctrl.max || 100}
-              value={Number(ctrl.value || 50)}
+              value={Number(ctrl.value ?? 50)}
               onChange={(e) => handleUpdateControl(i, { value: Number(e.target.value) })}
               className="w-full accent-indigo-500"
             />
