@@ -1,4 +1,4 @@
-import { useSyncExternalStore, useCallback, useEffect, useRef } from "react";
+import { useSyncExternalStore, useRef } from "react";
 
 type SetState<T> = {
   (partial: Partial<T> | ((state: T) => Partial<T>)): void;
@@ -40,29 +40,25 @@ export function createStore<T extends object>(
   return { getState, setState, subscribe };
 }
 
+/** Two selections that hold the same items, so a selector that builds a new array does not re-render. */
+export function sameSelection(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, i) => Object.is(item, b[i]));
+}
+
 export function useStore<T extends object, S>(
   store: StoreApi<T>,
   selector: (state: T) => S
 ): S {
-  const selectorRef = useRef(selector);
-  const resultRef = useRef<S | undefined>(undefined);
-  const stateRef = useRef<T | undefined>(undefined);
+  const last = useRef<{ value: S } | null>(null);
 
-  useEffect(() => {
-    selectorRef.current = selector;
-  }, [selector]);
-
-  const getSnapshot = useCallback(() => {
-    const currentState = store.getState();
-    // If state hasn't changed, return cached result
-    if (stateRef.current === currentState && resultRef.current !== undefined) {
-      return resultRef.current;
-    }
-    const nextResult = selectorRef.current(currentState);
-    stateRef.current = currentState;
-    resultRef.current = nextResult;
-    return nextResult;
-  }, [store]);
+  // Runs the selector of this render: one kept from an earlier render would close over old values
+  // (a node would not see the input it was just connected to).
+  const getSnapshot = () => {
+    const next = selector(store.getState());
+    if (!last.current || !sameSelection(last.current.value, next)) last.current = { value: next };
+    return last.current.value;
+  };
 
   return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 }
