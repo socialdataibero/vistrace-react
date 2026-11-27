@@ -8,7 +8,7 @@ import {
   PersistedAppState,
   VISTRACE_FILE_EXTENSION,
 } from "@/lib/persistence";
-import { clearAllTables, exportTableData, importTableData } from "@/db/duckdb";
+import { exportTableData, importTableData } from "@/db/duckdb";
 
 interface UseVistraceIOParams {
   title: string;
@@ -54,26 +54,27 @@ export function useVistraceIO({
       throw new Error("El archivo no es valido o no tiene un formato compatible.");
     }
 
-    await clearAllTables();
-
+    // No clearAllTables: it wiped tables other workspaces use, and a failed import left the user with nothing.
+    // Each table is replaced by name instead; a name owned by someone else fails before the canvas changes.
     for (const table of parsed.data.tables) {
       // Skip import if rows were not embedded (large table — data lives on server)
       if ((table as { dataEmbedded?: boolean }).dataEmbedded === false) continue;
       await importTableData(table.name, table.rows, table.columns);
     }
 
-    dataStoreApi.setState({
-      tables: parsed.data.tables.map((table) => ({
+    const imported = new Set(parsed.data.tables.map((table) => table.name.toLowerCase()));
+    dataStoreApi.setState((state) => ({
+      tables: [...state.tables.filter((table) => !imported.has(table.name.toLowerCase())), ...parsed.data.tables.map((table) => ({
         name: table.name,
         columns: table.columns,
         rowCount: table.rowCount,
         fileSize: table.fileSize,
         fileType: table.fileType,
-      })),
+      }))],
       loading: false,
       error: null,
       columnStats: {},
-    });
+    }));
 
     applyPersistedState(parsed.appState);
     await dagStoreApi.getState().executeAll();
