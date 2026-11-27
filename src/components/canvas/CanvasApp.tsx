@@ -42,7 +42,7 @@ import {
   parsePersistedAppState,
   PersistedAppState,
 } from "@/lib/persistence";
-import { fetchRemoteCanvasState, saveRemoteCanvasState } from "@/db/canvasState";
+import { CanvasConflictError, fetchRemoteCanvasState, saveRemoteCanvasState } from "@/db/canvasState";
 import { createShare } from "@/db/shares";
 import { clearHydratedNodeExecution, hasReferencedSampleData } from "@/lib/canvasAIHelpers";
 import { useCanvasHistory } from "@/hooks/useCanvasHistory";
@@ -87,6 +87,10 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
   const sampleDataRestoreAttemptedRef = useRef(false);
   const framesRef = useRef<CanvasFrame[]>([]);
   const handoffRawRef = useRef<string | null>(null);
+  // After a conflict every further save would fail the same way and could hide the newer version, so saving stops until reload.
+  const saveBlockedRef = useRef(false);
+  const saveErrorShownRef = useRef(false);
+  const pendingSaveRef = useRef(false);
   const iberoContext = useIberoStore((s) => s.context);
   const workspace = iberoWorkspace(iberoContext);
   const [iberoPublishOpen, setIberoPublishOpen] = useState(false);
@@ -168,22 +172,46 @@ export default function CanvasApp({ guestSnapshot = null }: { guestSnapshot?: Pe
     },
   }), [canvasId, currentPageId, edges, focusMode, frames, nodePositions, nodeSizes, nodes, pages, title]);
 
+  const saveCanvas = useCallback((options?: { keepalive?: boolean }) => {
+    if (saveBlockedRef.current) return;
+    pendingSaveRef.current = false;
+    void saveRemoteCanvasState(buildRemoteSaveState(), workspace, options).then(() => {
+      saveErrorShownRef.current = false;
+    }).catch((err) => {
+      console.warn("[persist] Failed to save canvas:", err);
+      if (err instanceof CanvasConflictError) saveBlockedRef.current = true;
+      // One dialog per failure streak, not one per keystroke while the server is down.
+      if (saveErrorShownRef.current && !(err instanceof CanvasConflictError)) return;
+      saveErrorShownRef.current = true;
+      setDialog({
+        type: "error",
+        title: err instanceof CanvasConflictError ? "El canvas cambió en otro lugar" : "No se pudo guardar el canvas",
+        message: err instanceof CanvasConflictError
+          ? err.message
+          : `Tus últimos cambios no están guardados; se reintentará con el siguiente cambio. ${err instanceof Error ? err.message : String(err)}`,
+      });
+    });
+  }, [buildRemoteSaveState, workspace]);
+
   const persistCanvasStateNow = useCallback(() => {
     if (!hydrated || isGuest) return;
-    void saveRemoteCanvasState(buildRemoteSaveState(), workspace).catch((err) => {
-      console.warn("[persist] Failed to save canvas:", err);
-    });
-  }, [hydrated, isGuest, buildRemoteSaveState, workspace]);
+    saveCanvas();
+  }, [hydrated, isGuest, saveCanvas]);
 
   useEffect(() => {
     if (!hydrated || isGuest) return;
-    const timeout = setTimeout(() => {
-      void saveRemoteCanvasState(buildRemoteSaveState(), workspace).catch((err) => {
-        console.warn("[persist] Canvas autosave failed:", err);
-      });
-    }, 1500);
-    return () => clearTimeout(timeout);
-  }, [hydrated, isGuest, buildRemoteSaveState, workspace]);
+    pendingSaveRef.current = true;
+    const timeout = setTimeout(() => saveCanvas(), 1500);
+    // Closing or leaving the tab inside the debounce window would otherwise drop the last changes.
+    const onPageHide = () => {
+      if (pendingSaveRef.current) saveCanvas({ keepalive: true });
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [hydrated, isGuest, saveCanvas]);
 
   const handleSaveSnapshot = useCallback(() => {
     const snapshotData = JSON.stringify(buildCurrentPersistedState());
